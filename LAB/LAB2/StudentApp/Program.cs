@@ -8,8 +8,7 @@ public class Program
         Console.OutputEncoding = Encoding.UTF8;
         Console.InputEncoding  = Encoding.UTF8;
 
-        // MongoDB chạy mặc định ở localhost:27017 (không cần tạo DB/Collection trước)
-        const string connStr = "mongodb://localhost:27017";
+        const string connStr = "mongodb+srv://thuyet1230_db_user:%40Thuyet22082005@cluster0.idbloqs.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 
         var repository = new StudentRepository(connStr, "StudentDB", "Students");
         var service    = new StudentService(repository);
