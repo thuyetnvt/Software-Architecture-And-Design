@@ -23,7 +23,10 @@ export function HomePage() {
 
   const saleQuery = useQuery({
     queryKey: ['home-products', 'sale'],
-    queryFn: () => getProducts({ page: 1, pageSize: 8, sort: 'price_asc' })
+    queryFn: () =>
+      getProducts({ page: 1, pageSize: 8, saleOnly: true } as Parameters<typeof getProducts>[0] & {
+        saleOnly: boolean;
+      })
   });
 
   return (
@@ -77,14 +80,15 @@ export function HomePage() {
 
       <ProductSection title="Sản phẩm mới" query={newProductsQuery} />
       <ProductSection title="Bán chạy" query={bestSellerQuery} />
-      <ProductSection title="Đang giảm giá" query={saleQuery} />
+      <ProductSection title="Đang giảm giá" query={saleQuery} emptyMessage="Hiện chưa có sản phẩm nào đang giảm giá." />
     </div>
   );
 }
 
 function ProductSection({
   title,
-  query
+  query,
+  emptyMessage = 'Chưa có sản phẩm trong mục này.'
 }: {
   title: string;
   query: {
@@ -92,6 +96,7 @@ function ProductSection({
     isError: boolean;
     data?: ProductPage;
   };
+  emptyMessage?: string;
 }) {
   return (
     <section className="mt-12">
@@ -116,7 +121,7 @@ function ProductSection({
         </div>
       ) : (
         <div className="rounded-md border border-slate-200 bg-white px-4 py-6 text-sm text-slate-500">
-          Chưa có sản phẩm trong mục này.
+          {emptyMessage}
         </div>
       )}
     </section>

@@ -20,11 +20,17 @@ public sealed class ProductsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<PagedResult<ProductListItemDto>>> Get(
         [FromQuery] ProductQuery query,
+        [FromQuery] bool saleOnly,
         CancellationToken cancellationToken)
     {
         var page = Math.Max(query.Page, 1);
         var pageSize = Math.Clamp(query.PageSize, 1, 60);
         var products = _dbContext.Products.AsNoTracking().Where(product => product.IsActive);
+
+        if (saleOnly)
+        {
+            products = products.Where(product => product.SalePrice != null && product.SalePrice < product.BasePrice);
+        }
 
         if (!string.IsNullOrWhiteSpace(query.Keyword))
         {
@@ -208,7 +214,7 @@ public sealed class ProductsController : ControllerBase
         }
 
         var query = new ProductQuery(null, product.CategoryId, null, null, null, true, null, "newest", 1, 8);
-        var result = await Get(query, cancellationToken);
+        var result = await Get(query, false, cancellationToken);
         var page = result.Value;
 
         return Ok(page?.Items.Where(item => item.Id != id).Take(4).ToArray() ?? []);
