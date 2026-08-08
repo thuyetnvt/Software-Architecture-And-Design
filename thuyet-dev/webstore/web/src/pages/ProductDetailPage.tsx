@@ -1,6 +1,7 @@
 import { Star } from 'lucide-react';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import { Link, useNavigate, useParams } from 'react-router';
 import { addCartItem } from '../api/cart';
 import { getProduct, getRelatedProducts } from '../api/catalog';
@@ -12,6 +13,8 @@ export function ProductDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   const productQuery = useQuery({
     queryKey: ['product', idOrSlug],
@@ -26,10 +29,22 @@ export function ProductDetailPage() {
   });
 
   const addCartMutation = useMutation({
-    mutationFn: (productVariantId: number) => addCartItem(productVariantId, 1),
-    onSuccess: (cart) => {
+    mutationFn: ({ productVariantId }: { productVariantId: number; redirectToCheckout: boolean }) =>
+      addCartItem(productVariantId, 1),
+    onMutate: () => {
+      setSuccessMessage('');
+      setErrorMessage('');
+    },
+    onSuccess: (cart, variables) => {
       queryClient.setQueryData(['cart'], cart);
-      navigate('/cart');
+      if (variables.redirectToCheckout) {
+        navigate('/checkout');
+      } else {
+        setSuccessMessage('Đã thêm sản phẩm vào giỏ hàng.');
+      }
+    },
+    onError: (error) => {
+      setErrorMessage(getBackendErrorMessage(error));
     }
   });
 
@@ -44,7 +59,9 @@ export function ProductDetailPage() {
   const product = productQuery.data;
   const firstInStockVariant = product.variants.find((variant) => variant.isActive && variant.stockQuantity > 0);
   const selectedVariant =
-    product.variants.find((variant) => variant.id === selectedVariantId) ?? firstInStockVariant ?? null;
+    selectedVariantId === null
+      ? firstInStockVariant ?? null
+      : product.variants.find((variant) => variant.id === selectedVariantId) ?? null;
   const selectedVariantHasStock = Boolean(
     selectedVariant && selectedVariant.isActive && selectedVariant.stockQuantity > 0
   );
@@ -54,6 +71,23 @@ export function ProductDetailPage() {
   const selectedVariantLabel = selectedVariant
     ? [selectedVariant.color, selectedVariant.size].filter(Boolean).join(' - ') || 'Mặc định'
     : '';
+
+  function handleVariantSelect(variantId: number) {
+    setSelectedVariantId(variantId);
+    setSuccessMessage('');
+    setErrorMessage('');
+  }
+
+  function handleAddToCart(redirectToCheckout: boolean) {
+    if (!selectedVariant || !selectedVariantHasStock) {
+      return;
+    }
+
+    addCartMutation.mutate({
+      productVariantId: selectedVariant.id,
+      redirectToCheckout
+    });
+  }
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-8">
@@ -110,7 +144,7 @@ export function ProductDetailPage() {
                 <button
                   key={variant.id}
                   type="button"
-                  onClick={() => setSelectedVariantId(variant.id)}
+                  onClick={() => handleVariantSelect(variant.id)}
                   disabled={!variant.isActive || variant.stockQuantity <= 0}
                   className={`flex items-center justify-between rounded-md border px-3 py-2 text-left transition ${
                     selectedVariant?.id === variant.id
@@ -167,7 +201,7 @@ export function ProductDetailPage() {
             <button
               type="button"
               disabled={!canPurchase || !selectedVariant}
-              onClick={() => selectedVariant && addCartMutation.mutate(selectedVariant.id)}
+              onClick={() => handleAddToCart(false)}
               className="rounded-md bg-emerald-700 px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               Thêm vào giỏ
@@ -175,15 +209,20 @@ export function ProductDetailPage() {
             <button
               type="button"
               disabled={!canPurchase || !selectedVariant}
-              onClick={() => selectedVariant && addCartMutation.mutate(selectedVariant.id)}
+              onClick={() => handleAddToCart(true)}
               className="rounded-md border border-slate-300 px-4 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
             >
               Mua ngay
             </button>
           </div>
-          {addCartMutation.isError ? (
-            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              Cần đăng nhập trước khi thêm sản phẩm vào giỏ.
+          {successMessage ? (
+            <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+              {successMessage}
+            </div>
+          ) : null}
+          {errorMessage ? (
+            <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {errorMessage}
             </div>
           ) : null}
         </div>
@@ -227,6 +266,18 @@ export function ProductDetailPage() {
       </div>
     </section>
   );
+}
+
+function getBackendErrorMessage(error: unknown) {
+  if (isAxiosError(error)) {
+    const data = error.response?.data;
+
+    if (data && typeof data === 'object' && 'message' in data && typeof data.message === 'string') {
+      return data.message;
+    }
+  }
+
+  return 'Không thêm được sản phẩm vào giỏ hàng.';
 }
 
 function LoadingState() {
